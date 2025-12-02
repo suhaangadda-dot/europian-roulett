@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>European 3D Neon Roulette</title>
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: radial-gradient(circle at top,#0a0a12,#020204);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+.navbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 15px 25px; width:100%; background: #0c0d13; border-bottom: 2px solid #222;
+  box-shadow: 0 5px 25px rgba(74,62,255,0.5);
+  border-radius: 0 0 20px 20px;
+}
+.navbar h2 { margin: 0; color: #7afcff; text-shadow: 0 0 12px #7afcff, 0 0 25px #0ff; }
+.token-box {
+  padding: 8px 16px;
+  background: rgba(10,10,30,0.8);
+  border: 2px solid #6a5bff;
+  border-radius: 25px;
+  font-weight: bold;
+  color:#fff;
+  text-shadow: 0 0 10px #6a5bff;
+  box-shadow: 0 0 15px #6a5bff inset;
+}
+.roulette-container { 
+  position: relative; width: 400px; max-width:90vw; height: 400px; margin: 25px auto; 
+  perspective: 1000px;
+}
+.wheel {
+  width: 100%; height: 100%; border-radius: 50%;
+  border: 12px solid #FFD700;
+  box-shadow: inset 0 0 30px #fffa80, 0 5px 25px rgba(0,0,0,0.6);
+  transition: transform 5s cubic-bezier(.1,.6,.2,1);
+}
+.pointer {
+  position:absolute; left:50%; top:-15px; transform:translateX(-50%) rotate(0deg);
+  width:0; height:0; border-left:18px solid transparent;
+  border-right:18px solid transparent; border-bottom:30px solid #fffc00;
+  filter: drop-shadow(0 0 8px #fffc00);
+}
+button {
+  padding:14px 22px; margin-top:10px; width:100%; font-size:18px;
+  background:#5c4dff; color:white; border:none; border-radius:18px;
+  cursor:pointer; transition:.25s;
+  box-shadow: 0 4px 12px rgba(92,77,255,0.5), inset 0 0 6px #7c6cff;
+}
+button:hover { background:#7c6cff; box-shadow:0 6px 15px rgba(92,77,255,0.7), inset 0 0 10px #9f8cff;}
+input {
+  margin-top:10px; width:100%; padding:14px; color:white;
+  background:#0f111a; border-radius:16px; border:2px solid #333;
+  box-shadow: inset 0 0 8px rgba(255,255,255,0.1);
+}
+.chips { display:flex; justify-content:center; gap:12px; margin:12px 0; flex-wrap: wrap; }
+.chip {
+  padding:10px 18px; border-radius:24px; background:#181a2b;
+  border:3px solid #7175ff; cursor:pointer; transition:.2s;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.5), inset 0 0 6px #7175ff;
+}
+.chip:hover, .chip.active { background:#3d43ff; border-color:#fff; box-shadow:0 4px 12px rgba(61,67,255,0.7), inset 0 0 8px #9f9fff;}
+.result-glow { animation: glow 1s ease-in-out; }
+@keyframes glow {
+  0%,100%{text-shadow: 0 0 8px #0ff,0 0 16px #0ff;}
+  50%{text-shadow: 0 0 20px #0ff,0 0 30px #0ff;}
+}
+/* Betting grid for numbers */
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap:6px;
+  margin-top:10px;
+  max-height:200px;
+  overflow-y:auto;
+}
+.number-grid button {
+  font-size:14px;
+  padding:8px 0;
+}
+.range-chips { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px 0; }
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <h2>🎡 European 3D Neon Roulette</h2>
+  <div class="token-box">Tokens: <span id="tokens">1000</span></div>
+</nav>
+
+<div class="roulette-container">
+  <div class="pointer"></div>
+  <canvas id="rouletteCanvas" class="wheel"></canvas>
+</div>
+
+<div style="width:320px; max-width:95vw;">
+  <h2>Place Your Bet</h2>
+  <div class="chips">
+    <div class="chip" onclick="selectBet('red',this)">🔴 Red</div>
+    <div class="chip" onclick="selectBet('black',this)">⚫ Black</div>
+    <div class="chip" onclick="selectBet('green',this)">🟢 Zero</div>
+    <div class="chip" onclick="selectBet('odd',this)">Odd</div>
+    <div class="chip" onclick="selectBet('even',this)">Even</div>
+  </div>
+  <div class="range-chips">
+    <div class="chip" onclick="selectBet('1-10',this)">1-10</div>
+    <div class="chip" onclick="selectBet('11-20',this)">11-20</div>
+    <div class="chip" onclick="selectBet('21-30',this)">21-30</div>
+    <div class="chip" onclick="selectBet('31-36',this)">31-36</div>
+  </div>
+  <div class="number-grid" id="numberGrid"></div>
+  <input type="number" id="betAmount" placeholder="Bet Amount">
+  <button onclick="spin()">SPIN</button>
+  <p id="resultText"></p>
+</div>
+
+<script>
+// Canvas setup
+const canvas = document.getElementById("rouletteCanvas");
+const ctx = canvas.getContext("2d");
+canvas.width = canvas.height = 400;
+
+const numbers = [
+  0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,
+  10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26
+];
+const colors = numbers.map(n=> n===0?"green": n%2===0?"red":"black");
+let rotation = 0;
+let tokens = 1000;
+let betColor = null;
+let betNumber = null;
+
+// Populate number buttons
+const numberGrid = document.getElementById('numberGrid');
+for(let i=0;i<=36;i++){
+  const btn=document.createElement('button');
+  btn.innerText=i;
+  btn.classList.add('chip');
+  btn.onclick=()=>{selectBet(i,btn)};
+  numberGrid.appendChild(btn);
+}
+
+function drawWheel(highlightIndex=-1){
+  const step = (Math.PI*2)/numbers.length;
+  ctx.clearRect(0,0,400,400);
+  for(let i=0;i<numbers.length;i++){
+    ctx.beginPath();
+    ctx.moveTo(200,200);
+    ctx.arc(200,200,200, step*i, step*(i+1));
+    ctx.fillStyle = colors[i];
+    ctx.fill();
+    if(i===highlightIndex){
+      ctx.strokeStyle="#00ffdd";
+      ctx.lineWidth=6;
+      ctx.stroke();
+      ctx.shadowBlur=20;
+      ctx.shadowColor="#00ffdd";
+    } else ctx.shadowBlur=0;
+    ctx.save();
+    ctx.translate(200,200);
+    ctx.rotate(step*i + step/2);
+    ctx.fillStyle = "#fff";
+    ctx.font="16px Arial";
+    ctx.textAlign="center";
+    ctx.fillText(numbers[i], 120, 5);
+    ctx.restore();
+  }
+}
+drawWheel();
+
+function selectBet(value,el){
+  betColor = null; betNumber = null;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  if(typeof value==='number'){ betNumber=value; }
+  else betColor=value;
+  el.classList.add('active');
+}
+
+function updateTokens(){ document.getElementById("tokens").innerText = tokens; }
+
+function spin(){
+  const bet = parseInt(document.getElementById("betAmount").value);
+  if(!bet || bet<=0) return alert("Invalid bet");
+  if(betColor===null && betNumber===null) return alert("Select a bet");
+  if(bet>tokens) return alert("Not enough tokens");
+  tokens-=bet; updateTokens();
+
+  const spinDeg = 360*12 + Math.floor(Math.random()*360);
+  rotation+=spinDeg;
+  canvas.style.transition='transform 5s cubic-bezier(.1,.6,.2,1)';
+  canvas.style.transform=`rotate(${rotation}deg)`;
+
+  setTimeout(()=>{
+    const normalized = (rotation%360 + 360)%360;
+    const idx = Math.floor(normalized/(360/numbers.length));
+    const result = numbers[numbers.length-idx-1];
+    const resultColor = result===0?"green": result%2===0?"red":"black";
+
+    drawWheel(numbers.length-idx-1);
+
+    const resText=document.getElementById('resultText');
+    let win=false;
+    let multiplier=0;
+
+    // Check all bet types
+    if(betNumber!==null && betNumber===result){ win=true; multiplier=35; }
+    else if(betColor==='red' && resultColor==='red'){ win=true; multiplier=2; }
+    else if(betColor==='black' && resultColor==='black'){ win=true; multiplier=2; }
+    else if(betColor==='green' && resultColor==='green'){ win=true; multiplier=14; }
+    else if(betColor==='odd' && result!==0 && result%2===1){ win=true; multiplier=2; }
+    else if(betColor==='even' && result!==0 && result%2===0){ win=true; multiplier=2; }
+    else if(betColor==='1-10' && result>=1 && result<=10){ win=true; multiplier=2; }
+    else if(betColor==='11-20' && result>=11 && result<=20){ win=true; multiplier=2; }
+    else if(betColor==='21-30' && result>=21 && result<=30){ win=true; multiplier=2; }
+    else if(betColor==='31-36' && result>=31 && result<=36){ win=true; multiplier=2; }
+
+    if(win){
+      let winAmount = bet*multiplier;
+      tokens+=winAmount;
+      resText.innerHTML=`🎉 Landed on <b>${result}</b> — You WON ${winAmount} tokens!`;
+      resText.classList.add('result-glow');
+      setTimeout(()=>resText.classList.remove('result-glow'),1200);
+    } else{
+      resText.innerHTML=`❌ Landed on <b>${result}</b> — You lost ${bet} tokens.`;
+      resText.classList.add('result-glow');
+      setTimeout(()=>resText.classList.remove('result-glow'),1200);
+    }
+
+    updateTokens();
+    betColor=null; betNumber=null;
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  },5000);
+}
+</script>
+</body>
+</html>
